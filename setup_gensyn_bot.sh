@@ -4,31 +4,31 @@ echo "=============================="
 echo "  Made by PRODIP - Gensyn Bot Setup"
 echo "=============================="
 
-# Telegram Bot Token input
+# 1. User input
 read -p "🔐 Enter your Telegram Bot Token: " BOT_TOKEN
-
-# Telegram Chat ID input
 read -p "💬 Enter your Telegram Chat ID: " CHAT_ID
+read -p "✏️ Enter your Bot Promotion Name (header message): " BOT_PROMO_NAME
 
-# Setup directory
+# 2. Setup directory
 BOT_DIR=gensyn-tg-bot
 mkdir -p "$BOT_DIR"
 cd "$BOT_DIR"
 
-echo "⚙️ Updating and installing prerequisites..."
+# 3. Update & install dependencies
+echo "⚙️ Updating package list and installing dependencies..."
 sudo apt update -y
 sudo apt install -y python3 python3-venv python3-pip tmux
 
-# Create and activate python virtualenv
-echo "🐍 Creating python virtual environment..."
+# 4. Create & activate virtualenv
+echo "🐍 Creating Python virtual environment..."
 python3 -m venv venv
 source venv/bin/activate
 
-# Upgrade pip and install telegram package
+# 5. Upgrade pip and install python-telegram-bot
 pip install --upgrade pip
 pip install python-telegram-bot --quiet
 
-# Create the python bot script
+# 6. Create Python bot script
 cat > gensyn_log_tg_bot.py <<EOF
 import asyncio
 import subprocess
@@ -36,7 +36,7 @@ from telegram import Bot
 
 BOT_TOKEN = '$BOT_TOKEN'
 CHAT_ID = '$CHAT_ID'
-BOT_NAME = 'QmT8ir9zUWZjidyx4dMEz5Z2FMGtqxK2S1v1edFkKkfL9b'
+BOT_PROMO_NAME = '$BOT_PROMO_NAME'
 
 bot = Bot(token=BOT_TOKEN)
 last_lines = []
@@ -64,22 +64,22 @@ async def monitor_logs():
             if not line:
                 continue
 
-            header = "📣 Entire You Bot Activated"
+            header = BOT_PROMO_NAME
 
             if "Map: 100%" in line:
-                msg = f"{header}\\n[{BOT_NAME}]\\n🗺️ {line}"
+                msg = f"{header}\\n🗺️ {line}"
                 await send_message(msg)
 
             elif line.startswith("Starting round:"):
-                msg = f"{header}\\n[{BOT_NAME}]\\n🚀 {line}"
+                msg = f"{header}\\n🚀 {line}"
                 await send_message(msg)
 
             elif line.startswith("Joining round:"):
-                msg = f"{header}\\n[{BOT_NAME}]\\n🔄 {line}"
+                msg = f"{header}\\n🔄 {line}"
                 await send_message(msg)
 
             elif "logging_utils.global_defs][ERROR] - Exception occurred during game run." in line:
-                msg = f"{header}\\n[{BOT_NAME}]\\n🚨 NODE CRASH DETECTED!\\n{line}"
+                msg = f"{header}\\n🚨 NODE CRASH DETECTED!\\n{line}"
                 await send_message(msg)
 
         last_lines = lines[-100:]
@@ -96,10 +96,10 @@ if __name__ == '__main__':
     asyncio.run(monitor_logs())
 EOF
 
-# Start the bot in tmux session
+# 7. Run bot inside tmux session
 echo "🚀 Starting the bot inside tmux session 'TGBOT'..."
 tmux new-session -d -s TGBOT "cd $PWD && source venv/bin/activate && python gensyn_log_tg_bot.py"
 
 echo "✅ Setup complete!"
-echo "📝 To view bot logs, run: tmux attach -t TGBOT"
-echo "📝 To detach from tmux, press: Ctrl+B then D"
+echo "📝 To view bot logs: tmux attach -t TGBOT"
+echo "📝 To detach tmux: Press Ctrl+B then D"
