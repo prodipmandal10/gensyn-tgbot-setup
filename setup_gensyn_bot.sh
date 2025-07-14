@@ -67,19 +67,19 @@ async def monitor_logs():
             header = BOT_PROMO_NAME
 
             if "Map: 100%" in line:
-                msg = f"{header}\\n🩷 ({line})"
+                msg = f"{header}\n<b>{line}</b>"
                 await send_message(msg)
 
             elif line.startswith("Starting round:"):
-                msg = f"{header}\\n🩷 ({line})"
+                msg = f"{header}\n<b>{line}</b>"
                 await send_message(msg)
 
             elif line.startswith("Joining round:"):
-                msg = f"{header}\\n🩷 ({line})"
+                msg = f"{header}\n<b>{line}</b>"
                 await send_message(msg)
 
             elif "logging_utils.global_defs][ERROR] - Exception occurred during game run." in line:
-                msg = f"{header}\\n🩷 (🚨 NODE CRASH DETECTED! {line})"
+                msg = f"{header}\n<b>🚨 NODE CRASH DETECTED!</b>\n<b>{line}</b>"
                 await send_message(msg)
 
         last_lines = lines[-100:]
@@ -87,7 +87,7 @@ async def monitor_logs():
 
 async def send_message(message):
     try:
-        await bot.send_message(chat_id=CHAT_ID, text=message)
+        await bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='HTML')
         print("Sent:", message)
     except Exception as e:
         print("[ERROR] Telegram send failed:", e)
