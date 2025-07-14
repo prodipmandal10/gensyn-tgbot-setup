@@ -29,7 +29,7 @@ pip install --upgrade pip
 pip install python-telegram-bot --quiet
 
 # 6. Create Python bot script
-cat > gensyn_log_tg_bot.py <<EOF
+cat > gensyn_log_tg_bot.py <<'EOF'
 import asyncio
 import subprocess
 from telegram import Bot
