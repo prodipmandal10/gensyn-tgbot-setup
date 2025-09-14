@@ -1,77 +1,61 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
-echo "=============================="
-echo "  Made by PRODIP - Gensyn Bot Setup"
-echo "=============================="
-
-# 1. User input
-read -p "🔐 Enter your Telegram Bot Token: " BOT_TOKEN
-read -p "💬 Enter your Telegram Chat ID: " CHAT_ID
-read -p "✏️ Enter your Bot Promotion Name (header message): " BOT_PROMO_NAME
-
-# 2. Setup directory
-BOT_DIR=gensyn-tg-bot
-mkdir -p "$BOT_DIR"
-cd "$BOT_DIR"
-
-# 3. Update & install dependencies
-echo "⚙️ Updating package list and installing dependencies..."
-sudo apt update -y
-sudo apt install -y python3 python3-venv python3-pip tmux
-
-# 4. Create & activate virtualenv
-echo "🐍 Creating Python virtual environment..."
-python3 -m venv venv
-source venv/bin/activate
-
-# 5. Upgrade pip and install python-telegram-bot
-pip install --upgrade pip
-pip install python-telegram-bot --quiet
-
-# 6. Create Python bot script
-cat > gensyn_log_tg_bot.py <<EOF
 import asyncio
 import subprocess
 from telegram import Bot
 import time
 import re
+from datetime import datetime
 
-BOT_TOKEN = '$BOT_TOKEN'
-CHAT_ID = '$CHAT_ID'
-BOT_PROMO_NAME = '$BOT_PROMO_NAME'
+# ====== CONFIGURATION ======
+BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID'
+BOT_PROMO_NAME = 'GENSYN- CJE(1)'   # আপনি নিজেরভাবে পরিবর্তন করতে পারেন
+TMUX_SESSION = 'GEN'               # tmux session নাম, যদি আলাদা হয় সেটাও পরিবর্তন করুন
+ALERT_INTERVAL = 600               # ১০ মিনিট = 600 সেকেন্ড
+MAX_TRACK_LINES = 100              # কত লাইন মনে রাখবে (prevent duplicate alerts কোনও পুরোনো লগ নিয়ে)
+# ============================
 
 bot = Bot(token=BOT_TOKEN)
 last_lines = []
-last_alert_time = 0  # শেষ alert পাঠানোর সময়
+last_alert_time = 0
 
-def get_tmux_logs(session_name="GEN"):
+def get_tmux_logs(session_name=TMUX_SESSION):
+    """tmux থেকে session এর সমস্ত pane লগ ধরবে"""
     try:
         output = subprocess.check_output(['tmux', 'capture-pane', '-pt', session_name])
-        return output.decode('utf-8').strip().splitlines()
+        return output.decode('utf-8', errors='ignore').strip().splitlines()
     except Exception as e:
         print(f"[ERROR] TMUX capture failed: {e}")
         return []
 
-def clean_line(line):
-    """Progress bar / অপ্রয়োজনীয় অংশ বাদ দিয়ে লাইন ছোট করা"""
-    line = re.sub(r"█+", "█…", line)   # Long bar কেটে ছোট করা
+def clean_line(line: str) -> str:
+    """লগের অপ্রয়োজনীয় অংশ ও বড় progress bar কমিয়ে সুন্দর একটি লাইন তৈরি করবে"""
+    # Long progress bar কমিয়ে দেখাবে শুধু শুরু ও কিছু অংশ
+    line = re.sub(r"█+", "█…", line)
+    # লাইন আগে ও পরে spaces কেটে ফেল
     return line.strip()
 
-async def send_message(message, parse_html=False):
+async def send_message(text: str, parse_html: bool = False):
     try:
         if parse_html:
-            await bot.send_message(chat_id=CHAT_ID, text=message, parse_mode="HTML")
+            await bot.send_message(chat_id=CHAT_ID, text=text, parse_mode="HTML")
         else:
-            await bot.send_message(chat_id=CHAT_ID, text=message)
-        print("Sent:", message[:80], "...")
+            await bot.send_message(chat_id=CHAT_ID, text=text)
+        print(f"Sent message at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     except Exception as e:
-        print("[ERROR] Telegram send failed:", e)
+        print(f"[ERROR] Telegram send failed: {e}")
 
 async def send_alert(lines):
-    """শেষ 10 লাইন সুন্দর করে message box এ পাঠাবে"""
+    """শেষ ১০ লাইন একটি সুন্দর HTML pre block এ পাঠাবে"""
     clean_logs = "\n".join([clean_line(l) for l in lines[-10:]])
-    msg = f"<b>{BOT_PROMO_NAME}</b>\\n⏰ <i>Last 10 log lines</i>:\\n\\n<pre>{clean_logs}</pre>"
-    await send_message(msg, parse_html=True)
+    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M")
+    message = (
+        f"<b>🚨 GENSYN LOGS CHECK, [{timestamp}]</b>\n"
+        f"<b>{BOT_PROMO_NAME}</b>\n\n"
+        f"<pre>{clean_logs}</pre>"
+    )
+    await send_message(message, parse_html=True)
 
 async def monitor_logs():
     global last_lines, last_alert_time
@@ -81,50 +65,38 @@ async def monitor_logs():
             await asyncio.sleep(3)
             continue
 
-        # নতুন লাইন detect করা
+        # detect new lines to send events immediately
         new_lines = [line for line in lines if line not in last_lines]
 
         for line in new_lines:
-            line = line.strip()
-            if not line:
+            stripped = line.strip()
+            if not stripped:
                 continue
 
-            header = BOT_PROMO_NAME
-
-            if "Map: 100%" in line:
-                msg = f"{header}\\n🗺️ {clean_line(line)}"
+            # কিছু ইভেন্ট থাকলে সংবাদ / 알림 পাঠাবে
+            if "Map: 100%" in stripped:
+                msg = f"{BOT_PROMO_NAME}\n🗺️ {clean_line(stripped)}"
+                await send_message(msg)
+            elif stripped.startswith("Starting round:"):
+                msg = f"{BOT_PROMO_NAME}\n🚀 {clean_line(stripped)}"
+                await send_message(msg)
+            elif stripped.startswith("Joining round:"):
+                msg = f"{BOT_PROMO_NAME}\n🔄 {clean_line(stripped)}"
+                await send_message(msg)
+            elif "logging_utils.global_defs][ERROR]" in stripped:
+                msg = f"{BOT_PROMO_NAME}\n🚨 NODE CRASH DETECTED!\n{clean_line(stripped)}"
                 await send_message(msg)
 
-            elif "Starting round:" in line:
-                msg = f"{header}\\n🚀 {clean_line(line)}"
-                await send_message(msg)
+        # duplicate prevention
+        last_lines = lines[-MAX_TRACK_LINES:]
 
-            elif "Joining round:" in line:
-                msg = f"{header}\\n🔄 {clean_line(line)}"
-                await send_message(msg)
-
-            elif "logging_utils.global_defs][ERROR]" in line:
-                msg = f"{header}\\n🚨 NODE CRASH DETECTED!\\n{clean_line(line)}"
-                await send_message(msg)
-
-        last_lines = lines[-100:]
-
-        # প্রতি 10 মিনিট পর alert (শেষ 10 লাইন সুন্দর করে পাঠানো হবে)
+        # প্রতি ALERT_INTERVAL পর alert পাঠাবে
         now = time.time()
-        if now - last_alert_time >= 600:  # 600 sec = 10 min
+        if now - last_alert_time >= ALERT_INTERVAL:
             await send_alert(lines)
             last_alert_time = now
 
         await asyncio.sleep(3)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(monitor_logs())
-EOF
-
-# 7. Run bot inside tmux session
-echo "🚀 Starting the bot inside tmux session 'TGBOT'..."
-tmux new-session -d -s TGBOT "cd $PWD && source venv/bin/activate && python gensyn_log_tg_bot.py"
-
-echo "✅ Setup complete!"
-echo "📝 To view bot logs: tmux attach -t TGBOT"
-echo "📝 To detach tmux: Press Ctrl+B then D"
