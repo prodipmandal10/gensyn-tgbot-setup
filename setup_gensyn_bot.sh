@@ -35,6 +35,7 @@ cat > gensyn_log_tg_bot.py <<'EOF'
 import asyncio
 import subprocess
 import time
+import html
 from telegram import Bot
 from telegram.constants import ParseMode
 
@@ -56,11 +57,6 @@ def get_tmux_logs(session_name="GEN"):
         print(f"[ERROR] TMUX capture failed: {e}")
         return []
 
-def escape_markdown_v2(text):
-    """Escapes special characters in Markdown V2 to avoid parsing errors."""
-    escape_chars = r'_*[]()~`>#+-=|{}.!'
-    return "".join(f"\\{char}" if char in escape_chars else char for char in text)
-
 async def send_last_10_lines():
     global last_log_time
     lines = get_tmux_logs()
@@ -71,12 +67,12 @@ async def send_last_10_lines():
     # Get the last 10 lines
     last_10_lines = lines[-LOG_LINES_TO_SEND:]
     
-    # Format the message in a monospaced block
-    header = f"{BOT_PROMO_NAME}\n\n📋 Last {LOG_LINES_TO_SEND} lines of log:"
-    formatted_log = "\n".join([escape_markdown_v2(line) for line in last_10_lines])
+    # Format the message using HTML tags for monospaced text
+    header = f"{html.escape(BOT_PROMO_NAME)}<br><br>📋 Last {LOG_LINES_TO_SEND} lines of log:"
+    formatted_log = "\n".join([html.escape(line) for line in last_10_lines])
     
-    # Use triple backticks for a code block in Markdown V2
-    msg = f"{header}\n```\n{formatted_log}\n```"
+    # Use <pre> and <code> for a code block in HTML
+    msg = f"{header}\n<pre><code>{formatted_log}</code></pre>"
     await send_message(msg)
     last_log_time = time.time()
 
@@ -96,22 +92,23 @@ async def monitor_logs():
             if not line:
                 continue
             
-            header = BOT_PROMO_NAME
+            header = html.escape(BOT_PROMO_NAME)
+            escaped_line = html.escape(line)
             
             if "Map: 100%" in line:
-                msg = f"{header}\n🗺️ {escape_markdown_v2(line)}"
+                msg = f"{header}<br>🗺️ <code>{escaped_line}</code>"
                 await send_message(msg)
             
             elif line.startswith("Starting round:"):
-                msg = f"{header}\n🚀 {escape_markdown_v2(line)}"
+                msg = f"{header}<br>🚀 <code>{escaped_line}</code>"
                 await send_message(msg)
             
             elif line.startswith("Joining round:"):
-                msg = f"{header}\n🔄 {escape_markdown_v2(line)}"
+                msg = f"{header}<br>🔄 <code>{escaped_line}</code>"
                 await send_message(msg)
             
             elif "logging_utils.global_defs][ERROR] - Exception occurred during game run." in line:
-                msg = f"{header}\n🚨 NODE CRASH DETECTED!\n{escape_markdown_v2(line)}"
+                msg = f"{header}<br>🚨 NODE CRASH DETECTED!<br><code>{escaped_line}</code>"
                 await send_message(msg)
         
         # Check if 10 minutes have passed to send the log dump
@@ -123,7 +120,7 @@ async def monitor_logs():
 
 async def send_message(message):
     try:
-        await bot.send_message(chat_id=CHAT_ID, text=message, parse_mode=ParseMode.MARKDOWN_V2)
+        await bot.send_message(chat_id=CHAT_ID, text=message, parse_mode=ParseMode.HTML)
         print("Sent:", message)
     except Exception as e:
         print(f"[ERROR] Telegram send failed: {e}")
