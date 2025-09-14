@@ -33,6 +33,8 @@ cat > gensyn_log_tg_bot.py <<EOF
 import asyncio
 import subprocess
 from telegram import Bot
+import time
+import re
 
 BOT_TOKEN = '$BOT_TOKEN'
 CHAT_ID = '$CHAT_ID'
@@ -40,6 +42,7 @@ BOT_PROMO_NAME = '$BOT_PROMO_NAME'
 
 bot = Bot(token=BOT_TOKEN)
 last_lines = []
+last_alert_time = 0  # শেষ alert পাঠানোর সময়
 
 def get_tmux_logs(session_name="GEN"):
     try:
@@ -49,14 +52,36 @@ def get_tmux_logs(session_name="GEN"):
         print(f"[ERROR] TMUX capture failed: {e}")
         return []
 
+def clean_line(line):
+    """Progress bar / অপ্রয়োজনীয় অংশ বাদ দিয়ে লাইন ছোট করা"""
+    line = re.sub(r"█+", "█…", line)   # Long bar কেটে ছোট করা
+    return line.strip()
+
+async def send_message(message, parse_html=False):
+    try:
+        if parse_html:
+            await bot.send_message(chat_id=CHAT_ID, text=message, parse_mode="HTML")
+        else:
+            await bot.send_message(chat_id=CHAT_ID, text=message)
+        print("Sent:", message[:80], "...")
+    except Exception as e:
+        print("[ERROR] Telegram send failed:", e)
+
+async def send_alert(lines):
+    """শেষ 10 লাইন সুন্দর করে message box এ পাঠাবে"""
+    clean_logs = "\n".join([clean_line(l) for l in lines[-10:]])
+    msg = f"<b>{BOT_PROMO_NAME}</b>\\n⏰ <i>Last 10 log lines</i>:\\n\\n<pre>{clean_logs}</pre>"
+    await send_message(msg, parse_html=True)
+
 async def monitor_logs():
-    global last_lines
+    global last_lines, last_alert_time
     while True:
         lines = get_tmux_logs()
         if not lines:
             await asyncio.sleep(3)
             continue
 
+        # নতুন লাইন detect করা
         new_lines = [line for line in lines if line not in last_lines]
 
         for line in new_lines:
@@ -67,30 +92,30 @@ async def monitor_logs():
             header = BOT_PROMO_NAME
 
             if "Map: 100%" in line:
-                msg = f"{header}\\n🗺️ {line}"
+                msg = f"{header}\\n🗺️ {clean_line(line)}"
                 await send_message(msg)
 
-            elif line.startswith("Starting round:"):
-                msg = f"{header}\\n🚀 {line}"
+            elif "Starting round:" in line:
+                msg = f"{header}\\n🚀 {clean_line(line)}"
                 await send_message(msg)
 
-            elif line.startswith("Joining round:"):
-                msg = f"{header}\\n🔄 {line}"
+            elif "Joining round:" in line:
+                msg = f"{header}\\n🔄 {clean_line(line)}"
                 await send_message(msg)
 
-            elif "logging_utils.global_defs][ERROR] - Exception occurred during game run." in line:
-                msg = f"{header}\\n🚨 NODE CRASH DETECTED!\\n{line}"
+            elif "logging_utils.global_defs][ERROR]" in line:
+                msg = f"{header}\\n🚨 NODE CRASH DETECTED!\\n{clean_line(line)}"
                 await send_message(msg)
 
         last_lines = lines[-100:]
-        await asyncio.sleep(3)
 
-async def send_message(message):
-    try:
-        await bot.send_message(chat_id=CHAT_ID, text=message)
-        print("Sent:", message)
-    except Exception as e:
-        print("[ERROR] Telegram send failed:", e)
+        # প্রতি 10 মিনিট পর alert (শেষ 10 লাইন সুন্দর করে পাঠানো হবে)
+        now = time.time()
+        if now - last_alert_time >= 600:  # 600 sec = 10 min
+            await send_alert(lines)
+            last_alert_time = now
+
+        await asyncio.sleep(3)
 
 if __name__ == '__main__':
     asyncio.run(monitor_logs())
