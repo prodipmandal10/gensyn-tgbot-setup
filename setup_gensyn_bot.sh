@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "=============================="
-echo "  Made by PRODIP - Gensyn Bot Setup (Modified)"
+echo "  Made by PRODIP - Gensyn Bot Setup (Fancy Pink Name)"
 echo "=============================="
 
 # 1. User input
@@ -10,6 +10,7 @@ read -p "💬 Enter your Telegram Chat ID: " CHAT_ID
 read -p "✏️ Enter your Bot Promotion Name (header message): " BOT_PROMO_NAME
 read -p "💻 Enter the tmux session name to monitor (default: GEN): " TMUX_SESSION
 TMUX_SESSION=${TMUX_SESSION:-GEN}
+read -p "👤 Enter your Name (for pink header, e.g., CJE): " USER_NAME
 
 # 2. Setup directory
 BOT_DIR=gensyn-tg-bot
@@ -44,6 +45,7 @@ BOT_TOKEN = 'BOT_TOKEN_PLACEHOLDER'
 CHAT_ID = 'CHAT_ID_PLACEHOLDER'
 BOT_PROMO_NAME = 'BOT_PROMO_NAME_PLACEHOLDER'
 TMUX_SESSION = 'TMUX_SESSION_PLACEHOLDER'
+USER_NAME = 'USER_NAME_PLACEHOLDER'
 
 LOG_INTERVAL_MINUTES = 10
 LOG_LINES_TO_SEND = 10
@@ -76,7 +78,8 @@ async def send_last_10_lines():
     if not lines:
         return
     last_10_lines = lines[-LOG_LINES_TO_SEND:]
-    header = f"{html.escape(BOT_PROMO_NAME)}\n\n📋 Last {LOG_LINES_TO_SEND} lines of log:"
+    # Fancy pink cloud header
+    header = f"☁️💗 {html.escape(BOT_PROMO_NAME)} 💗☁️\n💖 {html.escape(USER_NAME)} 💖\n"
     formatted_log = "\n".join([html.escape(line) for line in last_10_lines])
     msg = f"{header}\n<pre><code>{formatted_log}</code></pre>"
     await send_message(msg)
@@ -92,27 +95,37 @@ async def monitor_logs():
 
         new_lines = [line for line in lines if line not in last_lines]
 
+        # Instant alerts for important events
+        instant_msgs = []
+        map_progress = {}
         for line in new_lines:
             line = line.strip()
             if not line:
                 continue
 
-            header = html.escape(BOT_PROMO_NAME)
             escaped_line = html.escape(line)
 
-            if "Map: 100%" in line:
-                msg = f"{header}\n🗺️ <code>{escaped_line}</code>"
-                await send_message(msg)
+            if "Map:" in line:
+                # Group repeated map lines
+                map_progress[line] = map_progress.get(line, 0) + 1
             elif line.startswith("Starting round:"):
-                msg = f"{header}\n🚀 <code>{escaped_line}</code>"
-                await send_message(msg)
+                instant_msgs.append(f"🚀 {escaped_line}")
             elif line.startswith("Joining round:"):
-                msg = f"{header}\n🔄 <code>{escaped_line}</code>"
-                await send_message(msg)
+                instant_msgs.append(f"🔄 {escaped_line}")
             elif "logging_utils.global_defs][ERROR] - Exception occurred during game run." in line:
-                msg = f"{header}\n🚨 NODE CRASH DETECTED!\n<code>{escaped_line}</code>"
-                await send_message(msg)
+                instant_msgs.append(f"🚨 NODE CRASH DETECTED!\n{escaped_line}")
 
+        # Send grouped map progress
+        if map_progress:
+            header = f"☁️💗 {html.escape(BOT_PROMO_NAME)} 💗☁️\n💖 {html.escape(USER_NAME)} 💖\n🗺️ Map Progress Summary:"
+            summary = "\n".join([f"- {html.escape(k)} ({v} times)" for k, v in map_progress.items()])
+            await send_message(f"{header}\n{summary}")
+
+        # Send instant alerts
+        for msg in instant_msgs:
+            await send_message(f"☁️💗 {html.escape(BOT_PROMO_NAME)} 💗☁️\n💖 {html.escape(USER_NAME)} 💖\n{msg}")
+
+        # Check 10 min log dump
         if time.time() - last_log_time >= LOG_INTERVAL_MINUTES * 60:
             await send_last_10_lines()
 
@@ -136,12 +149,14 @@ ESCAPED_BOT_TOKEN=$(printf '%s\n' "$BOT_TOKEN" | sed 's/[][\/.&*$]/\\&/g')
 ESCAPED_CHAT_ID=$(printf '%s\n' "$CHAT_ID" | sed 's/[][\/.&*$]/\\&/g')
 ESCAPED_BOT_PROMO_NAME=$(printf '%s\n' "$BOT_PROMO_NAME" | sed 's/[][\/.&*$]/\\&/g')
 ESCAPED_TMUX_SESSION=$(printf '%s\n' "$TMUX_SESSION" | sed 's/[][\/.&*$]/\\&/g')
+ESCAPED_USER_NAME=$(printf '%s\n' "$USER_NAME" | sed 's/[][\/.&*$]/\\&/g')
 
 # Replace placeholders
 sed -i "s|BOT_TOKEN_PLACEHOLDER|${ESCAPED_BOT_TOKEN}|g" gensyn_log_tg_bot.py
 sed -i "s|CHAT_ID_PLACEHOLDER|${ESCAPED_CHAT_ID}|g" gensyn_log_tg_bot.py
 sed -i "s|BOT_PROMO_NAME_PLACEHOLDER|${ESCAPED_BOT_PROMO_NAME}|g" gensyn_log_tg_bot.py
 sed -i "s|TMUX_SESSION_PLACEHOLDER|${ESCAPED_TMUX_SESSION}|g" gensyn_log_tg_bot.py
+sed -i "s|USER_NAME_PLACEHOLDER|${ESCAPED_USER_NAME}|g" gensyn_log_tg_bot.py
 
 # 7. Run bot inside tmux session
 echo "🚀 Starting the bot inside tmux session 'TGBOT'..."
