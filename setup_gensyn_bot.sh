@@ -14,7 +14,7 @@ BOT_DIR=$HOME/gensyn-tg-bot
 mkdir -p "$BOT_DIR"
 cd "$BOT_DIR"
 
-# 3. Write Python bot script
+# 3. Create Python bot script dynamically
 cat > gensyn_log_tg_bot.py <<EOF
 import asyncio
 import subprocess
@@ -37,7 +37,7 @@ async def periodic_alert():
     while True:
         lines = get_tmux_logs()
         if lines:
-            last_10 = "\n".join(lines[-10:])
+            last_10 = "\\n".join(lines[-10:])
             msg = f"<b>🚨 {BOT_PROMO_NAME} - GENSYN LOGS CHECK 🚨</b>\\n\\n<pre>{last_10}</pre>"
             try:
                 await bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode="HTML")
