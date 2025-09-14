@@ -25,19 +25,22 @@ python3 -m venv venv
 source venv/bin/activate
 
 # 5. Upgrade pip and install python-telegram-bot
+echo "📦 Installing required Python libraries..."
 pip install --upgrade pip
 pip install python-telegram-bot --quiet
 
 # 6. Create Python bot script
-cat > gensyn_log_tg_bot.py <<EOF
+# Using <<'EOF' to prevent shell from interpreting Python code inside the block
+cat > gensyn_log_tg_bot.py <<'EOF'
 import asyncio
 import subprocess
 import time
-from telegram import Bot, ParseMode
+from telegram import Bot
+from telegram.constants import ParseMode
 
-BOT_TOKEN = '$BOT_TOKEN'
-CHAT_ID = '$CHAT_ID'
-BOT_PROMO_NAME = '$BOT_PROMO_NAME'
+BOT_TOKEN = 'BOT_TOKEN_PLACEHOLDER'
+CHAT_ID = 'CHAT_ID_PLACEHOLDER'
+BOT_PROMO_NAME = 'BOT_PROMO_NAME_PLACEHOLDER'
 LOG_INTERVAL_MINUTES = 10
 LOG_LINES_TO_SEND = 10
 
@@ -64,10 +67,11 @@ async def send_last_10_lines():
     last_10_lines = lines[-LOG_LINES_TO_SEND:]
     
     # Format the message in a monospaced block
-    header = f"{BOT_PROMO_NAME}\\n📋 Last {LOG_LINES_TO_SEND} lines of log:"
-    formatted_log = "\\n".join(last_10_lines)
+    header = f"{BOT_PROMO_NAME}\n\n📋 Last {LOG_LINES_TO_SEND} lines of log:"
+    formatted_log = "\n".join(last_10_lines)
     
-    msg = f"{header}\\n```\\n{formatted_log}\\n```"
+    # Use triple backticks for a code block in Markdown V2
+    msg = f"{header}\n```\n{formatted_log}\n```"
     await send_message(msg)
     last_log_time = time.time()
 
@@ -90,19 +94,19 @@ async def monitor_logs():
             header = BOT_PROMO_NAME
             
             if "Map: 100%" in line:
-                msg = f"{header}\\n🗺️ {line}"
+                msg = f"{header}\n🗺️ {line}"
                 await send_message(msg)
             
             elif line.startswith("Starting round:"):
-                msg = f"{header}\\n🚀 {line}"
+                msg = f"{header}\n🚀 {line}"
                 await send_message(msg)
             
             elif line.startswith("Joining round:"):
-                msg = f"{header}\\n🔄 {line}"
+                msg = f"{header}\n🔄 {line}"
                 await send_message(msg)
             
             elif "logging_utils.global_defs][ERROR] - Exception occurred during game run." in line:
-                msg = f"{header}\\n🚨 NODE CRASH DETECTED!\\n{line}"
+                msg = f"{header}\n🚨 NODE CRASH DETECTED!\n{line}"
                 await send_message(msg)
         
         # Check if 10 minutes have passed to send the log dump
@@ -117,11 +121,17 @@ async def send_message(message):
         await bot.send_message(chat_id=CHAT_ID, text=message, parse_mode=ParseMode.MARKDOWN_V2)
         print("Sent:", message)
     except Exception as e:
-        print("[ERROR] Telegram send failed:", e)
+        print(f"[ERROR] Telegram send failed: {e}")
 
 if __name__ == '__main__':
     asyncio.run(monitor_logs())
 EOF
+
+# Replace placeholders with user input values
+sed -i "s|BOT_TOKEN_PLACEHOLDER|$BOT_TOKEN|g" gensyn_log_tg_bot.py
+sed -i "s|CHAT_ID_PLACEHOLDER|$CHAT_ID|g" gensyn_log_tg_bot.py
+sed -i "s|BOT_PROMO_NAME_PLACEHOLDER|$BOT_PROMO_NAME|g" gensyn_log_tg_bot.py
+
 
 # 7. Run bot inside tmux session
 echo "🚀 Starting the bot inside tmux session 'TGBOT'..."
