@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "=============================="
-echo "  Made by PRODIP - Gensyn Bot Setup (Fancy Pink Name)"
+echo "  Made by PRODIP - Gensyn Bot Setup (Last 10 Lines Only)"
 echo "=============================="
 
 # 1. User input
@@ -58,7 +58,6 @@ def get_tmux_logs(session_name=TMUX_SESSION):
     try:
         output = subprocess.check_output(['tmux', 'capture-pane', '-pt', session_name])
         lines = output.decode('utf-8').strip().splitlines()
-        # Remove unsupported <br> and clean lines
         lines = [line.replace("<br>", "\n") for line in lines]
         return lines
     except Exception as e:
@@ -78,7 +77,6 @@ async def send_last_10_lines():
     if not lines:
         return
     last_10_lines = lines[-LOG_LINES_TO_SEND:]
-    # Fancy pink cloud header
     header = f"☁️💗 {html.escape(BOT_PROMO_NAME)} 💗☁️\n💖 {html.escape(USER_NAME)} 💖\n"
     formatted_log = "\n".join([html.escape(line) for line in last_10_lines])
     msg = f"{header}\n<pre><code>{formatted_log}</code></pre>"
@@ -97,29 +95,17 @@ async def monitor_logs():
 
         # Instant alerts for important events
         instant_msgs = []
-        map_progress = {}
         for line in new_lines:
             line = line.strip()
             if not line:
                 continue
-
             escaped_line = html.escape(line)
-
-            if "Map:" in line:
-                # Group repeated map lines
-                map_progress[line] = map_progress.get(line, 0) + 1
-            elif line.startswith("Starting round:"):
+            if line.startswith("Starting round:"):
                 instant_msgs.append(f"🚀 {escaped_line}")
             elif line.startswith("Joining round:"):
                 instant_msgs.append(f"🔄 {escaped_line}")
             elif "logging_utils.global_defs][ERROR] - Exception occurred during game run." in line:
                 instant_msgs.append(f"🚨 NODE CRASH DETECTED!\n{escaped_line}")
-
-        # Send grouped map progress
-        if map_progress:
-            header = f"☁️💗 {html.escape(BOT_PROMO_NAME)} 💗☁️\n💖 {html.escape(USER_NAME)} 💖\n🗺️ Map Progress Summary:"
-            summary = "\n".join([f"- {html.escape(k)} ({v} times)" for k, v in map_progress.items()])
-            await send_message(f"{header}\n{summary}")
 
         # Send instant alerts
         for msg in instant_msgs:
