@@ -68,7 +68,7 @@ async def send_last_10_lines():
     last_10_lines = lines[-LOG_LINES_TO_SEND:]
     
     # Format the message using HTML tags for monospaced text
-    header = f"{html.escape(BOT_PROMO_NAME)}<br><br>📋 Last {LOG_LINES_TO_SEND} lines of log:"
+    header = f"{html.escape(BOT_PROMO_NAME)}\n\n📋 Last {LOG_LINES_TO_SEND} lines of log:"
     formatted_log = "\n".join([html.escape(line) for line in last_10_lines])
     
     # Use <pre> and <code> for a code block in HTML
@@ -96,19 +96,19 @@ async def monitor_logs():
             escaped_line = html.escape(line)
             
             if "Map: 100%" in line:
-                msg = f"{header}<br>🗺️ <code>{escaped_line}</code>"
+                msg = f"{header}\n🗺️ <code>{escaped_line}</code>"
                 await send_message(msg)
             
             elif line.startswith("Starting round:"):
-                msg = f"{header}<br>🚀 <code>{escaped_line}</code>"
+                msg = f"{header}\n🚀 <code>{escaped_line}</code>"
                 await send_message(msg)
             
             elif line.startswith("Joining round:"):
-                msg = f"{header}<br>🔄 <code>{escaped_line}</code>"
+                msg = f"{header}\n🔄 <code>{escaped_line}</code>"
                 await send_message(msg)
             
             elif "logging_utils.global_defs][ERROR] - Exception occurred during game run." in line:
-                msg = f"{header}<br>🚨 NODE CRASH DETECTED!<br><code>{escaped_line}</code>"
+                msg = f"{header}\n🚨 NODE CRASH DETECTED!\n<code>{escaped_line}</code>"
                 await send_message(msg)
         
         # Check if 10 minutes have passed to send the log dump
