@@ -1,2 +1,1 @@
-# gensyn-tgbot-setup
-logs check
+Added first commit for testing.
